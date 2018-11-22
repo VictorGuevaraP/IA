@@ -1,0 +1,62 @@
+videos seguimiento
+clear all;
+close all;
+clc;
+%% cargar video
+videoReader = vision.VideoFileReader('tilted_face.avi');
+%% Createndo Video Player
+videoPlayer = vision.VideoPlayer;
+%% Leer primer cuadro
+videoFrame = step(videoReader);
+figure;imshow(videoFrame);title('Input Frame');
+%% Crear un objeto detector de cascada.
+faceDetector = vision.CascadeObjectDetector('FrontalFaceCART');
+bbox = step(faceDetector,videoFrame);
+figure;imshow(videoFrame);title('Detected Object');hold on;
+rectangle('Position',bbox,'LineWidth',5,'EdgeColor','r');
+% Guardar ubicación de cara como polígono. 
+x = bbox(1, 1); y = bbox(1, 2); w = bbox(1, 3); h = bbox(1, 4);
+bboxPolygon = [x, y, x+w, y, x+w, y+h, x, y+h];
+%% Crear e inicializar rastreador
+% Encuentra puntos en objetos detectados
+points = detectMinEigenFeatures(rgb2gray(videoFrame), 'ROI', bbox);
+% Mostrar puntos de característica detectados
+figure;
+imshow(videoFrame);
+hold on;
+plot(points);
+title('Detected Features');
+%% crear objeto de seguimiento de puntos
+tracker = vision.PointTracker;
+%Inicializar el rastreador con puntos detectados.
+initialize(tracker,points.Location,videoFrame);
+oldPoints = points.Location;
+%% Bucle a través de video
+while  ~isDone(videoReader)
+    % obtener el siguiente fotograma
+    videoFrame = step(videoReader);
+    
+    
+    % Utilizamos pointTracker para rastrear puntos de características
+    [points,validity] = step(tracker,videoFrame);
+    
+    % Keep only the valid points and discard the rest
+    visiblePoints = points(validity,:);
+    oldInliers = oldPoints(validity,:);
+    
+    % Conserve solo los puntos válidos y descartamos el resto.
+    oldPoints = visiblePoints;
+    setPoints(tracker, oldPoints);
+    
+    % Mostrar puntos de características rastreados
+    out = insertMarker(videoFrame, visiblePoints, '+','Color', 'green');
+    
+    % Salida de pantalla
+    step(videoPlayer, out);
+    
+    
+end
+%% lanzamiento de lector de video y escritor
+release(videoPlayer);
+release(videoReader);
+delete(videoPlayer); 
