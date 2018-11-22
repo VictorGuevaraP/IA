@@ -1,0 +1,66 @@
+clear all;
+close all
+clc;
+%% Cargamos el video
+videoReader = vision.VideoFileReader('Carros_antiguos.avi');  
+%% creamos reproductor de video 
+videoPlayer = vision.VideoPlayer;
+fgPlayer = vision.VideoPlayer;
+%% Creamos detección en primer plano
+foregroundDetector = vision.ForegroundDetector('NumGaussians', 3,'NumTrainingFrames', 50);
+%% Ejecutar en los primeros 75 cuadros para aprender antecedentes
+for i = 1:75
+    videoFrame = step(videoReader);
+    foreground = step(foregroundDetector,videoFrame);
+end
+% mostramos el cuadro 75 y la imagen de primer plano
+figure;
+imshow(videoFrame);
+title('Input Frame');
+figure;
+imshow(foreground);
+title('Foreground');
+%% Realizamos morfología para limpiar primer plano. 
+cleanForeground = imopen(foreground, strel('Disk',1));
+figure;
+% Mostramos primer plano original
+subplot(1,2,1);imshow(foreground);title('Original Foreground');
+% Visualización de primer plano después de la morfología
+subplot(1,2,2);imshow(cleanForeground);title('Clean Foreground');
+%% Creamos objeto de análisis - blobAnalsis
+%El objeto de análisis de manchas filtra aún más el primer plano detectado rechazando las manchas que contienen menos
+% de 150 pixeles.
+blobAnalysis = vision.BlobAnalysis('BoundingBoxOutputPort', true, ...
+    'AreaOutputPort', false, 'CentroidOutputPort', false, ...
+    'MinimumBlobArea', 150);
+%% Bucle a través de video
+while  ~isDone(videoReader)
+    %el siguiente cuadro
+    videoFrame = step(videoReader);
+    
+    %Detectamos píxeles de primer plano
+    foreground = step(foregroundDetector,videoFrame);
+    % Realizamos filtrado morfológico.
+    cleanForeground = imopen(foreground, strel('Disk',1));
+            
+    % Detectar los componentes conectados con el área mínima especificada
+    % y calculamos sus cajas delimitadoras
+    bbox = step(blobAnalysis, cleanForeground);
+    % Draw bounding boxes around the detected cars
+    result = insertShape(videoFrame, 'Rectangle', bbox, 'Color', 'green');
+    % Dibujamos las cajas delimitadoras alrededor de los coches detectados.
+    numCars = size(bbox, 1);
+    text = sprintf('Detected Vehicles = %d',numCars);
+    result = insertText(result, [10 10], numCars, 'BoxOpacity', 1, ...
+        'FontSize', 14);
+    %Salida de pantalla 
+    step(videoPlayer, result);
+    step(fgPlayer,cleanForeground);
+    
+end
+%% lanzamiento de lector de video y escritor
+release(videoPlayer);
+release(videoReader);
+release(fgPlayer);
+delete(videoPlayer); 
+delete(fgPlayer);
