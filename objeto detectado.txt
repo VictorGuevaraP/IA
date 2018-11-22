@@ -1,0 +1,52 @@
+close all;
+clear all;
+clc;
+%% Cargamos imagen
+imagen1 = imread('imagen.JPG');
+figure;
+imshow(imagen1);
+title('libro');
+imagen2 = imread('libros.JPG');    
+figure;
+imshow(imagen2);
+title('libros');
+%% Detectamos sus caracteristicas
+points1 = detectSURFFeatures(rgb2gray(imagen1));
+points2 = detectSURFFeatures(rgb2gray(imagen2));
+%% Extraemos caracteristicas
+[feats1,validpts1] = extractFeatures(rgb2gray(imagen1),points1);
+[feats2,validpts2] = extractFeatures(rgb2gray(imagen2),points2);
+%% Mostramos las 100 carateristicas mas relevantes
+figure;
+imshow(imagen1);
+hold on;
+plot(validpts1.selectStrongest(100),'showOrientation',true);
+title('Detected Features');
+%% Caractersitcas del analisis
+index_pairs = matchFeatures(feats1, feats2,...
+                             'Prenormalized', true);
+matched_pts1 = validpts1(index_pairs(:, 1));
+matched_pts2 = validpts2(index_pairs(:, 2));
+figure; 
+showMatchedFeatures(imagen1,imagen2,matched_pts1,matched_pts2,'montage');
+title('Initial Matches');
+% Definimos la ubicación del objeto en la imagen
+boxPolygon = [1, 1;...                           % top-left
+             size(imagen1, 2), 1;...                  % top-right
+             size(imagen1, 2), size(imagen1, 1);...        % bottom-right
+             1, size(imagen1, 1);...                  % bottom-left
+             1, 1];                               % top-left again to close the polygon
+%% Eliminamos los valores atípicos mientras estimamos la transformación geométrica utilizando RANSAC
+[tform, inlieroints1, inlierPoints2] = estimateGeometricTransform(matched_pts1,matched_pts2,'affine');
+figure; 
+showMatchedFeatures(imagen1,imagen2,inlieroints1,inlierPoints2,'montage');
+title('Filtered Matches');
+     
+%% Usa la información estimada para localizar el objeto. 
+newBoxPolygon = transformPointsForward(tform, boxPolygon);
+%% Ubicacion y deteccion del objeto
+figure; 
+imshow(imagen2);
+hold on;
+line(newBoxPolygon(:, 1), newBoxPolygon(:, 2), 'Color', 'g','LineWidth',5);
+title('Detected object');
